@@ -4,9 +4,8 @@ go 1.12
 
 require (
 	github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59
-	github.com/davecgh/go-spew v1.1.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
-	github.com/gin-gonic/gin v1.3.1-0.20190328061400-ce20f107f5dc
+	github.com/gin-gonic/gin v1.3.1-0.20190328061400-ce20f107f5dc // indirect
 	github.com/golang/protobuf v1.3.1 // indirect
 	github.com/labstack/echo v3.3.10+incompatible
 	github.com/labstack/gommon v0.2.8
