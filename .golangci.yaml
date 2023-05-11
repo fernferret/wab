@@ -1,0 +1,78 @@
+run:
+  # Don't require the UI to be compiled to run the lint test
+  build-tags:
+    - noui
+  skip-dirs:
+    - cmd/gen-fake-data
+linters:
+  enable-all: true
+  disable:
+    # Deprecated
+    - exhaustivestruct
+    - ifshort
+    - golint
+    - maligned
+    - structcheck
+    - interfacer
+    - scopelint
+    - deadcode
+    - nosnakecase
+    - varcheck
+
+    # linters I don't want
+    - funlen
+    - exhaustruct
+    - lll # This handles long lines, which I try to keep down but I don't want
+          # to fail a build because of
+    - gofumpt # I'm not using gofumpt (yet)
+    - godox # Yep, I have a ton of TODOs... that's ok for now...
+    - godot # I tried to tune this below but haven't gotten it right yet and I
+            # don't care that much. This needs to exclude lines that are used by
+            # swag
+    - paralleltest # Mango performs some mongodb initialization that can't run in parallel currently
+    - wrapcheck # I understand what this is trying to do but it doesn't work well with echo tracebacks, need to find a better way forward.
+
+  # enable:
+  #   - deadcode
+  #   - forbidigo
+  #   - testpackage
+  #   - gomnd
+  #   - goerr113
+
+linters-settings:
+  tagliatelle:
+    case:
+      # If set to true, this requires that the field name of Username matches
+      # `username`, I don't really want this, since some fields are better
+      # expressed differently.
+      use-field-name: false
+      rules:
+        json: snake
+        yaml: snake
+
+  godot:
+    exclude:
+      # Exclude comments that swaggo uses to generate docs
+      - "^@Router.*\\]$"
+
+  varnamelen:
+    ignore-names:
+      - db
+issues:
+  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-rules:
+    # Exclude some linters from running on tests files.
+    - path: (_test\.go|internal/testutils)
+      linters:
+        - varnamelen
+        - ireturn # we need to create some weird interfaces in our test code
+        - gochecknoglobals # I'm ok with global constants for my tests
+        - gochecknoinits # Inits are useful for globals in tests
+        - gocognit # Some test functions are doing lots of if checking, which
+                   # makes them high cog, maybe I'll tone this down at some
+                   # point
+        - cyclop
+        - maintidx
+        - wrapcheck # for tests I don't care about wrapping external errors,
+                    # many times I just want to see if a test has failed.
+        - gomnd
