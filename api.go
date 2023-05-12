@@ -111,6 +111,7 @@ func (s *APIServer) quietHTTPErrorHandler(err error, ectx echo.Context) {
 	} else {
 		msg = http.StatusText(code)
 	}
+
 	if _, ok := msg.(string); ok {
 		msg = echo.Map{"message": msg}
 	}
@@ -130,6 +131,8 @@ ERROR:
 	// I perform all my logging in the request/response area. I don't want this extra print
 	// e.Logger.Error(err)
 	// log.WithFields(log.Fields{"code": code, "err": err}).Errorf("Unable to respond with error code")
+
+	return
 }
 
 func (s *APIServer) setupStaticHandler() {
