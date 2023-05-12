@@ -31,6 +31,7 @@ linters:
             # swag
     - paralleltest # Mango performs some mongodb initialization that can't run in parallel currently
     - wrapcheck # I understand what this is trying to do but it doesn't work well with echo tracebacks, need to find a better way forward.
+    - gci
 
   # enable:
   #   - deadcode
