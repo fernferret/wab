@@ -115,8 +115,8 @@ const resetAll = () => {
     </template>
     <template #heading>Welcome!</template>
     WAB is running now and there should be a gRPC server listening. To test it out click the 'Greet' button below:<br />
-    <input type="text" v-model="data.name" placeholder="Enter your name" />
-    <button type="button" @click="runGreet" :disabled="data.name.length === 0">Greet</button>
+    <input type="text" v-model="data.name" placeholder="Enter your name" />&nbsp;
+    <button type="button" @click="runGreet" :disabled="data.name.length === 0">Greet</button>&nbsp;
     <button type="button" @click="resetAll" :disabled="data.response === null && data.responses.length === 0">
       Reset
     </button>

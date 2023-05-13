@@ -63,7 +63,7 @@ func (s *WebServer) RunLoop() {
 	// Start a GRPCServer and setup the webui for debugging.
 	//
 	// TODO: Disable grpcweb if we disable the embedded UI
-	grpcWebHdlr, debugUIHdlr := ServeGRPC(5050, !s.options.DisableGRPCWeb, !s.options.DisableGRPCUI)
+	grpcWebHdlr, debugUIHdlr := ServeGRPC(s.log.With("part", "grpc"), 5050, !s.options.DisableGRPCWeb, !s.options.DisableGRPCUI)
 
 	s.setupHTTPServer(grpcWebHdlr, debugUIHdlr)
 }

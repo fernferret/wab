@@ -166,13 +166,13 @@ func SetupGRPCHTTPHandler() (http.Handler, http.Handler) {
 	return grpcWebHandler, uiHandler
 }
 
-func ServeGRPC(port int, enableGRPCWeb, enableGRPCUI bool) (http.Handler, http.Handler) {
+func ServeGRPC(log *zap.SugaredLogger, port int, enableGRPCWeb, enableGRPCUI bool) (http.Handler, http.Handler) {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	log.Printf("server listening at %v", lis.Addr())
+	log.Infof("server listening at %v", lis.Addr())
 
 	baseSvr, svr := setupGRPCServer()
 
