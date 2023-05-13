@@ -233,8 +233,12 @@ export const MultiHelloRequest = {
 /** The greeting service definition. */
 export interface Greeter {
   /** Sends a greeting */
-  Greet(request: DeepPartial<HelloRequest>, metadata?: grpc.Metadata): Promise<HelloReply>;
-  GreetMany(request: DeepPartial<MultiHelloRequest>, metadata?: grpc.Metadata): Observable<HelloReply>;
+  Greet(request: DeepPartial<HelloRequest>, metadata?: grpc.Metadata, abortSignal?: AbortSignal): Promise<HelloReply>;
+  GreetMany(
+    request: DeepPartial<MultiHelloRequest>,
+    metadata?: grpc.Metadata,
+    abortSignal?: AbortSignal,
+  ): Observable<HelloReply>;
 }
 
 export class GreeterClientImpl implements Greeter {
@@ -246,12 +250,16 @@ export class GreeterClientImpl implements Greeter {
     this.GreetMany = this.GreetMany.bind(this);
   }
 
-  Greet(request: DeepPartial<HelloRequest>, metadata?: grpc.Metadata): Promise<HelloReply> {
-    return this.rpc.unary(GreeterGreetDesc, HelloRequest.fromPartial(request), metadata);
+  Greet(request: DeepPartial<HelloRequest>, metadata?: grpc.Metadata, abortSignal?: AbortSignal): Promise<HelloReply> {
+    return this.rpc.unary(GreeterGreetDesc, HelloRequest.fromPartial(request), metadata, abortSignal);
   }
 
-  GreetMany(request: DeepPartial<MultiHelloRequest>, metadata?: grpc.Metadata): Observable<HelloReply> {
-    return this.rpc.invoke(GreeterGreetManyDesc, MultiHelloRequest.fromPartial(request), metadata);
+  GreetMany(
+    request: DeepPartial<MultiHelloRequest>,
+    metadata?: grpc.Metadata,
+    abortSignal?: AbortSignal,
+  ): Observable<HelloReply> {
+    return this.rpc.invoke(GreeterGreetManyDesc, MultiHelloRequest.fromPartial(request), metadata, abortSignal);
   }
 }
 
@@ -315,11 +323,13 @@ interface Rpc {
     methodDesc: T,
     request: any,
     metadata: grpc.Metadata | undefined,
+    abortSignal?: AbortSignal,
   ): Promise<any>;
   invoke<T extends UnaryMethodDefinitionish>(
     methodDesc: T,
     request: any,
     metadata: grpc.Metadata | undefined,
+    abortSignal?: AbortSignal,
   ): Observable<any>;
 }
 
@@ -351,13 +361,14 @@ export class GrpcWebImpl {
     methodDesc: T,
     _request: any,
     metadata: grpc.Metadata | undefined,
+    abortSignal?: AbortSignal,
   ): Promise<any> {
     const request = { ..._request, ...methodDesc.requestType };
     const maybeCombinedMetadata = metadata && this.options.metadata
       ? new BrowserHeaders({ ...this.options?.metadata.headersMap, ...metadata?.headersMap })
       : metadata || this.options.metadata;
     return new Promise((resolve, reject) => {
-      grpc.unary(methodDesc, {
+      const client = grpc.unary(methodDesc, {
         request,
         host: this.host,
         metadata: maybeCombinedMetadata,
@@ -372,6 +383,15 @@ export class GrpcWebImpl {
           }
         },
       });
+
+      const abortHandler = () => {
+        client.close();
+        reject(new Error("Aborted"));
+      };
+
+      if (abortSignal) {
+        abortSignal.addEventListener("abort", abortHandler);
+      }
     });
   }
 
@@ -379,6 +399,7 @@ export class GrpcWebImpl {
     methodDesc: T,
     _request: any,
     metadata: grpc.Metadata | undefined,
+    abortSignal?: AbortSignal,
   ): Observable<any> {
     const upStreamCodes = this.options.upStreamRetryCodes || [];
     const DEFAULT_TIMEOUT_TIME: number = 3_000;
@@ -413,6 +434,14 @@ export class GrpcWebImpl {
             return client.close();
           }
         });
+
+        const abortHandler = () => {
+          observer.error("Aborted");
+          client.close();
+        };
+        if (abortSignal) {
+          abortSignal.addEventListener("abort", abortHandler);
+        }
       });
       upStream();
     }).pipe(share());

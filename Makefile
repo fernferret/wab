@@ -36,6 +36,7 @@ proto:
     proto/greeter.proto && \
 	protoc -I proto --plugin=./ui/node_modules/.bin/protoc-gen-ts_proto \
 		--ts_proto_opt=outputClientImpl=grpc-web \
+		--ts_proto_opt=useAbortSignal=true \
 		--ts_proto_opt=esModuleInterop=true --ts_proto_out=./ui/src/gen proto/greeter.proto"
 
 # NOTE: I added  "importsNotUsedAsValues": "remove", to tsconfig.app.json to fix:

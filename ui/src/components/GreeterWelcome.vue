@@ -5,7 +5,7 @@ import DocumentationIcon from './icons/IconDocumentation.vue'
 import { HelloReply, HelloRequest, MultiHelloRequest } from '@/gen/greeter'
 import { useApi } from '@/composables/api'
 import { ref, onBeforeMount } from 'vue'
-import { Subscription, type Observer } from 'rxjs'
+import { type Observer } from 'rxjs'
 
 const api = useApi()
 
@@ -14,7 +14,9 @@ const data = ref({
   response: null as HelloReply | null,
   responses: [] as HelloReply[],
   streamRequest: MultiHelloRequest.create(),
-  subscription: undefined as undefined | Subscription,
+  abort: undefined as undefined | AbortController,
+  errMsg: '',
+  finished: false,
 })
 
 onBeforeMount(() => {
@@ -38,17 +40,43 @@ const runGreet = () => {
 //
 // We'll ask the server to greet us by the name
 const runMultiGreet = () => {
+  // Reset the error message and responses
+  data.value.errMsg = ''
+  data.value.responses = []
+
   const observer = {
     next: (item: HelloReply) => {
       console.log(`Got message: ${item.message}`)
       data.value.responses.push(item)
     },
     error: (err: any) => {
+      data.value.abort = undefined
+      // When the AbortController is used, an error with the string 'Aborted' is
+      // raises. In all other cases we'll get a proper error back from the
+      // GRPC-Web implementation that will have GRPC-like details.
+      if (err === 'Aborted') {
+        console.warn('Client cancelled request')
+        return
+      }
+      if (err && err.code !== undefined && err.message !== undefined) {
+        // A GRPC error was seen, this is likely.
+        const msg = `GRPC Error (${err.code}): ${err.message}`
+        console.error(msg)
+        data.value.errMsg = msg
+      } else {
+        data.value.errMsg = 'An unknown error has occurred, see console.'
+      }
+      // Always log the error, in case something internal went wrong.
       console.error(err)
     },
     complete: () => {
       console.log('Complete')
-      data.value.subscription = undefined
+      data.value.abort = undefined
+
+      // Once a user has gone all the way through the demo once, show the final
+      // documentation block which instructs them to read the documentation,
+      // repo and check out grpcui.
+      data.value.finished = true
     },
   } as Observer<HelloReply>
 
@@ -62,13 +90,14 @@ const runMultiGreet = () => {
 
   // Perform a streaming gRPC call. This is not the response, but a subscription
   // object that can be cancelled if the user wants to.
-  data.value.subscription = api.client.value?.GreetMany(data.value.streamRequest).subscribe(observer)
+  data.value.abort = new AbortController()
+  api.client.value?.GreetMany(data.value.streamRequest, undefined, data.value.abort.signal).subscribe(observer)
 }
 
 // Cancel an in-progress streaming call.
 const cancelMultiGreet = () => {
-  data.value.subscription?.unsubscribe()
-  data.value.subscription = undefined
+  data.value.abort?.abort()
+  data.value.abort = undefined
 }
 
 const resetAll = () => {
@@ -105,18 +134,31 @@ const resetAll = () => {
     <br />
     Responses:<input
       type="number"
+      :disabled="data.abort !== undefined"
       min="0"
       max="600"
       v-model="data.streamRequest.qty"
       placeholder="Number of Responses"
     /><br />
-    Sleep Time: <input type="number" min="0" max="600" v-model="data.streamRequest.sleepSeconds" /> seconds<br />
+    Sleep Time:
+    <input
+      :disabled="data.abort !== undefined"
+      type="number"
+      min="0"
+      max="600"
+      v-model="data.streamRequest.sleepSeconds"
+    />
+    seconds<br />
     <br />
 
-    <button type="button" @click="runMultiGreet" :disabled="data.name.length === 0 || data.subscription !== undefined">
+    <button type="button" @click="runMultiGreet" :disabled="data.name.length === 0 || data.abort !== undefined">
       Multi-Greet
     </button>
-    <button type="button" @click="cancelMultiGreet" :disabled="data.subscription === undefined">Cancel</button>
+    <button type="button" @click="cancelMultiGreet" :disabled="data.abort === undefined">Cancel</button>
+    <div v-if="data.errMsg">
+      <br />
+      <span class="errmsg">Error: {{ data.errMsg }}</span>
+    </div>
   </WelcomeItem>
   <WelcomeItem v-for="(item, idx) in data.responses" v-bind:key="`resp_${idx}`">
     <template #icon>
@@ -124,4 +166,34 @@ const resetAll = () => {
     </template>
     <template #heading>{{ item.message }}</template>
   </WelcomeItem>
+  <WelcomeItem v-if="data.finished">
+    <template #icon>
+      <DocumentationIcon />
+    </template>
+    <template #heading>What's next...</template>
+    Huzzah! You've gone all the way through. Here's what I recommend you do next:
+    <ul>
+      <li>
+        Check out the embedded GRPC tester called <a href="#"><code>grpcui</code></a
+        >.
+      </li>
+      <li>
+        Have a look at the defined
+        <a href="https://github.com/fernferret/wab/blob/master/proto/greeter.proto"><code>greeter.proto</code></a> file
+        to see how the proto and <code>gRPC</code> services are defined.
+      </li>
+      <li>
+        Glance at the
+        <a href="https://github.com/fernferret/wab/blob/master/proto/greeter.proto"><code>Makefile</code></a> to see how
+        everything is built.
+      </li>
+    </ul>
+  </WelcomeItem>
 </template>
+
+<style scoped>
+.errmsg {
+  font-weight: bold;
+  color: #ff8c00;
+}
+</style>

@@ -70,7 +70,22 @@ func (gs GRPCServer) GreetMany(req *gpb.MultiHelloRequest, svr gpb.Greeter_Greet
 		// Don't sleep for the last request
 		if idx < int(req.Qty)-1 {
 			// Sleep for x seconds after each request, can be 0
-			<-time.After(time.Second * time.Duration(req.SleepSeconds))
+			select {
+			case <-time.After(time.Second * time.Duration(req.SleepSeconds)):
+			case <-svr.Context().Done():
+				err := svr.Context().Err()
+				status := status.FromContextError(err)
+
+				// If The user cancelled the request log a warning, this isn't an issue
+				// but if there are timeouts happening we might be cancelling requests.
+				if status.Code() == codes.Canceled {
+					gs.log.Warnf("User cancelled request: %s", status.String())
+				} else {
+					gs.log.Error(status.String())
+				}
+
+				return svr.Context().Err()
+			}
 		}
 	}
 
