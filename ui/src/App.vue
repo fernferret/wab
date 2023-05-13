@@ -12,6 +12,7 @@ import HelloWorld from './components/HelloWorld.vue'
 
       <nav>
         <RouterLink to="/">WAB Home</RouterLink>
+        <a href="/grpc-ui/" target="_blank">GRPCUI</a>
         <RouterLink to="/welcome">Vue 3</RouterLink>
       </nav>
     </div>
