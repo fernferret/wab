@@ -19,7 +19,6 @@ func usage() {
 var (
 	versionFull = "dev"
 	version     = "dev"
-	versionMode = "dev"
 )
 
 func main() {
@@ -32,6 +31,7 @@ func main() {
 	flag.StringVarP(&options.Host, "bind", "b", "127.0.0.1", "set the bind host for the HTTP server")
 	flag.BoolVar(&options.DevMode, "dev", false, "if true, CORS headers will be insecure, use if you're splitting the API/Server for now.")
 	flag.BoolVar(&options.LogRequests, "log-requests", false, "if true, http requests will be logged, pretty loud")
+	flag.BoolVar(&options.DisableGRPCUI, "no-grpcui", false, "disable the GRPCUI debug endpoint at /grpc-ui/")
 	printVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Usage = usage
 	flag.Parse()
@@ -41,8 +41,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Setup the zap logger
+	// Setup the zap logger by marking it as zap's global logger and setting some
+	// pretty options.
 	util.SetupLogger(*logLevelString)
+
 	log := zap.S()
 
 	// Print some info about the server

@@ -14,7 +14,6 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	glog "github.com/labstack/gommon/log"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 
 	"github.com/fernferret/wab/internal/wabmw"
 	"github.com/fernferret/wab/ui"
@@ -22,16 +21,17 @@ import (
 
 // Options contains all the information about the web api. These are options like host, port, dev mode, etc.
 type Options struct {
-	Port        int
-	Host        string
-	DevMode     bool // If true, CORS headers will be not good.
-	LogRequests bool
-	BuildMode   string
+	Port          int
+	Host          string
+	DevMode       bool // If true, CORS headers will be not good.
+	LogRequests   bool
+	BuildMode     string
+	DisableGRPCUI bool
 }
 
-// APIServer holds the internal fields for the HTTP Server (Echo) as well as the HTTP Client
+// WebServer holds the internal fields for the HTTP Server (Echo) as well as the HTTP Client
 // used for performing outbound requests.
-type APIServer struct {
+type WebServer struct {
 	e       *echo.Echo
 	options *Options
 	client  *http.Client
@@ -40,8 +40,8 @@ type APIServer struct {
 }
 
 // NewAPIServer creates a new strip server with a given API/Options
-func NewAPIServer(options *Options) *APIServer {
-	server := &APIServer{
+func NewAPIServer(options *Options) *WebServer {
+	server := &WebServer{
 		e:       echo.New(),
 		options: options,
 		log:     zap.S(),
@@ -55,19 +55,26 @@ func NewAPIServer(options *Options) *APIServer {
 
 // RunLoop is the primary run method for the StripServer
 // NOTE: this method is blocking.
-func (s *APIServer) RunLoop() {
-	grpcSvr, svr := ServeGRPC(5050)
-	s.setupHTTPServer(grpcSvr, svr)
+func (s *WebServer) RunLoop() {
+	// Start a GRPCServer and setup the webui for debugging.
+	debugHandler := ServeGRPC(5050, !s.options.DisableGRPCUI)
+
+	s.setupHTTPServer(debugHandler)
 }
 
-func (s *APIServer) setupHTTPServer(grpcSvr *grpc.Server, grpcImpl *Server) {
+// setupHTTPServer creates a new Echo HTTP server. If an http.Handler is passed
+// in, it is assumed to be a grpcui based handler for debugging GRPC user
+// interfaces with GRPCURL.
+//
+// The GRPCUI is embedded into the process and is totally standalone.
+func (s *WebServer) setupHTTPServer(debugHandler http.Handler) {
 	s.e = echo.New()
 
 	if s.options.DevMode {
 		zap.S().Warn("DevMode enabled; your server is not secure against CORS based attacks.")
 		s.e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 			AllowOrigins: []string{"*"},
-			AllowMethods: []string{echo.GET, echo.PUT, echo.POST, echo.DELETE},
+			AllowMethods: []string{http.MethodGet, http.MethodPut, http.MethodPost, http.MethodDelete},
 		}))
 	}
 
@@ -86,9 +93,27 @@ func (s *APIServer) setupHTTPServer(grpcSvr *grpc.Server, grpcImpl *Server) {
 
 	s.e.Logger.SetLevel(glog.DEBUG)
 
-	if grpcSvr != nil {
-		s.setupGRPCDebugUI(grpcSvr, grpcImpl)
+	// Optionally setup the GRPCUI embedded debug server. This is (intentionally)
+	// totally independent of the web-app below.
+	//
+	// If a function was not passed in we'll embed a helpful message to users that
+	// they have everything setup correctly, but we did not embed the UI. In
+	// production you should probably not compile this in (via a different
+	// buildtag) but here in WAB I'm just doing it at runtime.
+	const grpcUIPath = "/grpc-ui"
+
+	var grpcUIDebugHandler echo.HandlerFunc
+
+	if debugHandler != nil {
+		s.log.Infof("Setup GRPC UI at %s", grpcUIPath)
+		grpcUIDebugHandler = echo.WrapHandler(http.StripPrefix(grpcUIPath, debugHandler))
+	} else {
+		grpcUIDebugHandler = noGRPCUIHandler
 	}
+
+	s.e.Any(fmt.Sprintf("%s/*", grpcUIPath), grpcUIDebugHandler)
+
+	// Setup the handler that will serve the embedded VueJS application.
 	s.setupStaticHandler()
 
 	s.setupRoutes()
@@ -102,7 +127,7 @@ func (s *APIServer) setupHTTPServer(grpcSvr *grpc.Server, grpcImpl *Server) {
 }
 
 // quietHTTPErrorHandler is identical to the built-in error handler, but I tailored it
-func (s *APIServer) quietHTTPErrorHandler(err error, ectx echo.Context) {
+func (s *WebServer) quietHTTPErrorHandler(err error, ectx echo.Context) {
 	var (
 		code = http.StatusInternalServerError
 		msg  interface{}
@@ -140,7 +165,7 @@ ERROR:
 	return
 }
 
-func (s *APIServer) setupStaticHandler() {
+func (s *WebServer) setupStaticHandler() {
 	assets := ui.GetAssets()
 	if assets == nil {
 		s.e.GET("/*", noEmbeddedUIHandler)
@@ -174,19 +199,19 @@ func (s *APIServer) setupStaticHandler() {
 	}
 }
 
-func (s *APIServer) getState() echo.HandlerFunc {
-	return func(c echo.Context) error {
+func (s *WebServer) getState() echo.HandlerFunc {
+	return func(ctx echo.Context) error {
 		result := map[string]interface{}{
 			"all_on":  true,
 			"dogs_on": false,
 			"cats_on": true,
 		}
 
-		return c.JSON(http.StatusOK, result)
+		return ctx.JSON(http.StatusOK, result)
 	}
 }
 
-func (s *APIServer) setupRoutes() {
+func (s *WebServer) setupRoutes() {
 	s.e.GET("/api/v1/state", s.getState())
 }
 
@@ -195,8 +220,8 @@ func noEmbeddedUIHandler(ectx echo.Context) error {
 	return ectx.String(http.StatusOK, "No UI embedded in this copy of wab")
 }
 
-func noSwaggerHandler(ectx echo.Context) error {
-	return ectx.String(http.StatusOK, "Swagger is not enabled in this copy of wab")
+func noGRPCUIHandler(ectx echo.Context) error {
+	return ectx.String(http.StatusOK, "GRPCUI is not enabled in this copy of wab")
 }
 
 func invalidAPIRoute(ectx echo.Context) error {

@@ -11,7 +11,6 @@ import (
 	"github.com/fullstorydev/grpcui"
 	"github.com/fullstorydev/grpcui/standalone"
 	"github.com/jhump/protoreflect/desc/protoparse"
-	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -20,7 +19,7 @@ import (
 )
 
 // server is used to implement helloworld.GreeterServer.
-type Server struct {
+type GRPCServer struct {
 	// Using UnimplementedGreeterServer will fix compilation errors if you forget
 	// to implement a method, which is great for forward-compatibility, but when
 	// developing it can hide issues.
@@ -31,16 +30,24 @@ type Server struct {
 	// stubbed out at compile time, but if new methods are added to the spec, it
 	// will not compile until they are added.
 	// gpb.UnsafeGreeterServer
+
+	log *zap.SugaredLogger
+}
+
+func NewGRPCServer() *GRPCServer {
+	return &GRPCServer{
+		log: zap.S(),
+	}
 }
 
 // SayHello implements helloworld.GreeterServer
-func (s Server) Greet(ctx context.Context, in *gpb.HelloRequest) (*gpb.HelloReply, error) {
+func (gs GRPCServer) Greet(ctx context.Context, in *gpb.HelloRequest) (*gpb.HelloReply, error) {
 	log.Printf("Received: %v", in.GetName())
 
 	return &gpb.HelloReply{Message: "Hello " + in.GetName()}, nil
 }
 
-func (s Server) GreetMany(req *gpb.HelloRequest, svr gpb.Greeter_GreetManyServer) error {
+func (gs GRPCServer) GreetMany(req *gpb.HelloRequest, svr gpb.Greeter_GreetManyServer) error {
 	reply := gpb.HelloReply{
 		Message: fmt.Sprintf("Hi %s", req.Name),
 	}
@@ -48,7 +55,7 @@ func (s Server) GreetMany(req *gpb.HelloRequest, svr gpb.Greeter_GreetManyServer
 	return svr.Send(&reply)
 }
 
-func (s *APIServer) setupGRPCDebugUI(grpcServer *grpc.Server, grpcImpl *Server) {
+func (gs *GRPCServer) getGRPCUIHandler(grpcServer *grpc.Server) http.Handler {
 	accessor := protoparse.FileContentsFromMap(map[string]string{
 		"greeter.proto": proto.Greeter,
 	})
@@ -58,46 +65,79 @@ func (s *APIServer) setupGRPCDebugUI(grpcServer *grpc.Server, grpcImpl *Server) 
 
 	descriptors, err := parser.ParseFiles("greeter.proto")
 	if err != nil {
-		s.log.With(zap.Error(err)).Fatalf("Failed to load greeter files.")
+		gs.log.With(zap.Error(err)).Fatalf("Failed to load greeter files.")
 	}
 
 	methods, err := grpcui.AllMethodsForServer(grpcServer)
 
 	if err != nil {
-		s.log.With(zap.Error(err)).Fatalf("Failed to load services from grpc server")
+		gs.log.With(zap.Error(err)).Fatalf("Failed to load services from grpc server")
 	}
 
 	inprocChan := &inprocgrpc.Channel{}
 
-	gpb.RegisterGreeterServer(inprocChan, grpcImpl)
+	gpb.RegisterGreeterServer(inprocChan, gs)
 
-	handler := standalone.Handler(inprocChan, "Web Application Bootstrap", methods, descriptors)
-	s.e.Any("/grpc-ui/*", echo.WrapHandler(http.StripPrefix("/grpc-ui", handler)))
-
-	s.log.Info("Setup GRPC UI at /grpc-ui")
+	return standalone.Handler(inprocChan, "Web Application Bootstrap", methods, descriptors)
 }
 
-func ServeGRPC(port int) (*grpc.Server, *Server) {
+func setupGRPCServer() (*grpc.Server, *GRPCServer) {
+	// Build a new GRPC Server that will handle the requests. This server is
+	// provided by the grpc libraries and will serve as the endpoint where we will
+	// "register" our methods with.
+	//
+	// This is very similar to creating a new HTTPServer in go and then adding
+	// handlers to it. A struct is used so method correctness can be enforced at
+	// compile time. See the bottom of the file for the extra compiler check!
+	baseSvr := grpc.NewServer()
+
+	// Now build an implementation of our methods. This is the struct defined our
+	// code.
+	svr := NewGRPCServer()
+
+	gpb.RegisterGreeterServer(baseSvr, svr)
+
+	return baseSvr, svr
+}
+
+// SetupGRPCHTTPHandler builds an in-memory GRPC handler, but does not start a
+// server.
+//
+// TODO: I'm not sure this is useful...
+func SetupGRPCHTTPHandler() http.Handler {
+	baseSvr, svr := setupGRPCServer()
+
+	handler := svr.getGRPCUIHandler(baseSvr)
+
+	return handler
+}
+
+func ServeGRPC(port int, enableHandler bool) http.Handler {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	s := grpc.NewServer()
-	svr := &Server{}
-	gpb.RegisterGreeterServer(s, svr)
-
 	log.Printf("server listening at %v", lis.Addr())
+
+	baseSvr, svr := setupGRPCServer()
+
 	go func() {
-		if err := s.Serve(lis); err != nil {
+		if err := baseSvr.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
 	}()
 
-	return s, svr
+	var handler http.Handler
+
+	if enableHandler {
+		handler = svr.getGRPCUIHandler(baseSvr)
+	}
+
+	return handler
 }
 
 // This check makes sure we're implementing the server correctly and can catch
 // incorrect methods like pointer receivers. It isn't actually used and is
 // thrown away after compile time.
-var _ gpb.GreeterServer = Server{}
+var _ gpb.GreeterServer = GRPCServer{}
