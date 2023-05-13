@@ -10,6 +10,7 @@ import (
 	"github.com/fullstorydev/grpchan/inprocgrpc"
 	"github.com/fullstorydev/grpcui"
 	"github.com/fullstorydev/grpcui/standalone"
+	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -104,15 +105,17 @@ func setupGRPCServer() (*grpc.Server, *GRPCServer) {
 // server.
 //
 // TODO: I'm not sure this is useful...
-func SetupGRPCHTTPHandler() http.Handler {
+func SetupGRPCHTTPHandler() (http.Handler, http.Handler) {
 	baseSvr, svr := setupGRPCServer()
 
-	handler := svr.getGRPCUIHandler(baseSvr)
+	uiHandler := svr.getGRPCUIHandler(baseSvr)
 
-	return handler
+	grpcWebHandler := svr.getGRPCUIHandler(baseSvr)
+
+	return grpcWebHandler, uiHandler
 }
 
-func ServeGRPC(port int, enableHandler bool) http.Handler {
+func ServeGRPC(port int, enableGRPCWeb, enableGRPCUI bool) (http.Handler, http.Handler) {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
@@ -128,16 +131,33 @@ func ServeGRPC(port int, enableHandler bool) http.Handler {
 		}
 	}()
 
-	var handler http.Handler
+	var uiHandler, grpcWebHandler http.Handler
 
-	if enableHandler {
-		handler = svr.getGRPCUIHandler(baseSvr)
+	if enableGRPCWeb {
+		grpcWebHandler = svr.getGRPCUIHandler(baseSvr)
 	}
 
-	return handler
+	if enableGRPCUI {
+		uiHandler = svr.getGRPCUIHandler(baseSvr)
+	}
+
+	return grpcWebHandler, uiHandler
 }
 
 // This check makes sure we're implementing the server correctly and can catch
 // incorrect methods like pointer receivers. It isn't actually used and is
 // thrown away after compile time.
 var _ gpb.GreeterServer = GRPCServer{}
+
+func (s *WebServer) GetGRPCWebHandler(baseSvr *grpc.Server) http.Handler {
+	wrappedGrpc := grpcweb.WrapServer(baseSvr)
+
+	return http.Handler(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		if wrappedGrpc.IsGrpcWebRequest(req) {
+			wrappedGrpc.ServeHTTP(resp, req)
+			return
+		}
+
+		s.log.Warn("Non GRPC request passed to GRPC handler.")
+	}))
+}

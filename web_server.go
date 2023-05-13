@@ -60,9 +60,11 @@ func NewAPIServer(options *Options) *WebServer {
 // NOTE: this method is blocking.
 func (s *WebServer) RunLoop() {
 	// Start a GRPCServer and setup the webui for debugging.
-	debugHandler := ServeGRPC(5050, !s.options.DisableGRPCUI)
+	//
+	// TODO: Disable grpcweb if we disable the embedded UI
+	grpcWebHdlr, debugUIHdlr := ServeGRPC(5050, true, !s.options.DisableGRPCUI)
 
-	s.setupHTTPServer(debugHandler)
+	s.setupHTTPServer(grpcWebHdlr, debugUIHdlr)
 }
 
 // setupHTTPServer creates a new Echo HTTP server. If an http.Handler is passed
@@ -70,7 +72,7 @@ func (s *WebServer) RunLoop() {
 // interfaces with GRPCURL.
 //
 // The GRPCUI is embedded into the process and is totally standalone.
-func (s *WebServer) setupHTTPServer(debugHandler http.Handler) {
+func (s *WebServer) setupHTTPServer(grpcWebHdlr, debugHandler http.Handler) {
 	s.e = echo.New()
 
 	if s.options.DevMode {
@@ -95,6 +97,19 @@ func (s *WebServer) setupHTTPServer(debugHandler http.Handler) {
 	}))
 
 	s.e.Logger.SetLevel(glog.DEBUG)
+
+	const grpcPath = "/grpc"
+
+	var grpcwebHandler echo.HandlerFunc
+
+	if grpcWebHdlr != nil {
+		s.log.Infof("Setup grpcweb at %s", grpcPath)
+		grpcwebHandler = echo.WrapHandler(http.StripPrefix(grpcPath, debugHandler))
+	} else {
+		grpcwebHandler = noGRPCWebHandler
+	}
+
+	s.e.Any(fmt.Sprintf("%s/*", grpcPath), grpcwebHandler)
 
 	// Optionally setup the GRPCUI embedded debug server. This is (intentionally)
 	// totally independent of the web-app below.
@@ -227,6 +242,6 @@ func noGRPCUIHandler(ectx echo.Context) error {
 	return ectx.String(http.StatusOK, "GRPCUI is not enabled in this copy of wab")
 }
 
-func invalidAPIRoute(ectx echo.Context) error {
-	return ectx.String(http.StatusNotFound, "this API route does not exist")
+func noGRPCWebHandler(ectx echo.Context) error {
+	return ectx.String(http.StatusOK, "The grpcweb extension is not enabled in this copy of wab")
 }
