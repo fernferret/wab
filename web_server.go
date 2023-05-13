@@ -39,7 +39,8 @@ type WebServer struct {
 	// object  *api.Object
 }
 
-// NewAPIServer creates a new strip server with a given API/Options
+// NewAPIServer creates a new APIServer which is the primary web
+// application/API.
 func NewAPIServer(options *Options) *WebServer {
 	server := &WebServer{
 		e:       echo.New(),
@@ -53,7 +54,9 @@ func NewAPIServer(options *Options) *WebServer {
 	return server
 }
 
-// RunLoop is the primary run method for the StripServer
+// RunLoop is the primary run method for the APIServer, call it when you're
+// ready to start the application.
+//
 // NOTE: this method is blocking.
 func (s *WebServer) RunLoop() {
 	// Start a GRPCServer and setup the webui for debugging.
