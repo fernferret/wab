@@ -27,14 +27,17 @@ func main() {
 	// Default log level
 	logLevelString := flag.String("level", "info", "log level, can be one of: trace, debug, info, warn, error, fatal, panic")
 
-	flag.IntVarP(&options.Port, "port", "p", 8080, "set the port for the HTTP server")
-	flag.StringVarP(&options.Host, "bind", "b", "127.0.0.1", "set the bind host for the HTTP server")
+	flag.StringVarP(&options.Bind, "bind", "b", "127.0.0.1:8080", "set the bind host for the http server")
+	flag.StringVarP(&options.BindGRPC, "bind-grpc", "g", "127.0.0.1:5050", "set the bind address for the gRPC server")
+	flag.BoolVar(&options.DisableGRPC, "no-grpc", false, "disable the native gRPC binding, grpcweb will still be available")
+	flag.BoolVar(&options.DisableReflection, "no-reflection", false, "disable gRPC reflection, this will prevent gRPCurl from working")
 	flag.BoolVar(&options.DevMode, "dev", false, "if true, CORS headers will be insecure, use if you're splitting the API/Server for now.")
 	flag.BoolVar(&options.LogRequests, "log-requests", false, "if true, http requests will be logged, pretty loud")
 	flag.BoolVar(&options.DisableGRPCUI, "no-grpcui", false, "disable the GRPCUI debug endpoint at /grpc-ui/")
 	flag.BoolVar(&options.DisableGRPCWeb, "no-grpcweb", false, "disable the grpcweb endpoint at /grpc/, this means the embedded Vue app won't work")
 	printVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Usage = usage
+	flag.CommandLine.SortFlags = false
 	flag.Parse()
 
 	if *printVersion {
@@ -49,8 +52,7 @@ func main() {
 	log := zap.S()
 
 	// Print some info about the server
-	hostPretty := options.Host
-	log.Infof("Starting HTTP server: http://%s:%d", hostPretty, options.Port)
+	log.Infof("Starting HTTP server: http://%s", options.Bind)
 	server := wab.NewAPIServer(options)
 	server.RunLoop()
 }

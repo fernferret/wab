@@ -3,7 +3,6 @@ package wab
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 
 	gpb "github.com/fernferret/wab/gen/greeterpb"
@@ -46,7 +46,7 @@ func NewGRPCServer() *GRPCServer {
 
 // SayHello implements helloworld.GreeterServer
 func (gs GRPCServer) Greet(ctx context.Context, in *gpb.HelloRequest) (*gpb.HelloReply, error) {
-	log.Printf("Received: %v", in.GetName())
+	gs.log.With("meth", "Greet").Infof("Received: %v", in.GetName())
 
 	return &gpb.HelloReply{Message: "Hello " + in.GetName()}, nil
 }
@@ -133,7 +133,40 @@ func (gs *GRPCServer) getGRPCWebHandler(baseSvr *grpc.Server) http.Handler {
 	}))
 }
 
-func setupGRPCServer() (*grpc.Server, *GRPCServer) {
+// SetupGRPCHTTPHandler builds an in-memory GRPC handler, but does not start a
+// server.
+func SetupGRPCHTTPHandler(enableGRPCWeb, enableGRPCUI bool) (http.Handler, http.Handler) {
+	_, grpcWebHandler, uiHandler := setupGRPCAndHandlers(enableGRPCWeb, enableGRPCUI)
+
+	return grpcWebHandler, uiHandler
+}
+
+func ServeGRPC(log *zap.SugaredLogger, bind string, enableReflection, enableGRPCWeb, enableGRPCUI bool) (http.Handler, http.Handler) {
+	lis, err := net.Listen("tcp", bind)
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	log.Infof("server listening at %v", lis.Addr())
+
+	baseSvr, grpcWebHandler, uiHandler := setupGRPCAndHandlers(enableGRPCWeb, enableGRPCUI)
+
+	// Enable the gRPC reflection:
+	// https://github.com/grpc/grpc-go/blob/master/Documentation/server-reflection-tutorial.md
+	if enableReflection {
+		reflection.Register(baseSvr)
+	}
+
+	go func() {
+		if err := baseSvr.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+	}()
+
+	return grpcWebHandler, uiHandler
+}
+
+func setupGRPCAndHandlers(enableGRPCWeb, enableGRPCUI bool) (*grpc.Server, http.Handler, http.Handler) {
 	// Build a new GRPC Server that will handle the requests. This server is
 	// provided by the grpc libraries and will serve as the endpoint where we will
 	// "register" our methods with.
@@ -149,39 +182,6 @@ func setupGRPCServer() (*grpc.Server, *GRPCServer) {
 
 	gpb.RegisterGreeterServer(baseSvr, svr)
 
-	return baseSvr, svr
-}
-
-// SetupGRPCHTTPHandler builds an in-memory GRPC handler, but does not start a
-// server.
-//
-// TODO: I'm not sure this is useful...
-func SetupGRPCHTTPHandler() (http.Handler, http.Handler) {
-	baseSvr, svr := setupGRPCServer()
-
-	uiHandler := svr.getGRPCUIHandler(baseSvr)
-
-	grpcWebHandler := svr.getGRPCWebHandler(baseSvr)
-
-	return grpcWebHandler, uiHandler
-}
-
-func ServeGRPC(log *zap.SugaredLogger, port int, enableGRPCWeb, enableGRPCUI bool) (http.Handler, http.Handler) {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-
-	log.Infof("server listening at %v", lis.Addr())
-
-	baseSvr, svr := setupGRPCServer()
-
-	go func() {
-		if err := baseSvr.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
-		}
-	}()
-
 	var uiHandler, grpcWebHandler http.Handler
 
 	if enableGRPCWeb {
@@ -192,7 +192,7 @@ func ServeGRPC(log *zap.SugaredLogger, port int, enableGRPCWeb, enableGRPCUI boo
 		uiHandler = svr.getGRPCUIHandler(baseSvr)
 	}
 
-	return grpcWebHandler, uiHandler
+	return baseSvr, grpcWebHandler, uiHandler
 }
 
 // This check makes sure we're implementing the server correctly and can catch
