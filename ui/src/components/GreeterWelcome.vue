@@ -4,7 +4,7 @@ import DocumentationIcon from './icons/IconDocumentation.vue'
 
 import { HelloReply, HelloRequest, MultiHelloRequest } from '@/gen/greeter'
 import { useApi } from '@/composables/api'
-import { ref } from 'vue'
+import { ref, onBeforeMount } from 'vue'
 import { Subscription, type Observer } from 'rxjs'
 
 const api = useApi()
@@ -15,6 +15,12 @@ const data = ref({
   responses: [] as HelloReply[],
   streamRequest: MultiHelloRequest.create(),
   subscription: undefined as undefined | Subscription,
+})
+
+onBeforeMount(() => {
+  // Perform a reset when the page loads. This will set some rational defaults
+  // for the streaming example that will send 3 messages at a 3 second interval.
+  resetAll()
 })
 
 const runGreet = () => {
@@ -59,6 +65,7 @@ const runMultiGreet = () => {
   data.value.subscription = api.client.value?.GreetMany(data.value.streamRequest).subscribe(observer)
 }
 
+// Cancel an in-progress streaming call.
 const cancelMultiGreet = () => {
   data.value.subscription?.unsubscribe()
   data.value.subscription = undefined
@@ -67,7 +74,8 @@ const cancelMultiGreet = () => {
 const resetAll = () => {
   data.value.response = null
   data.value.responses = []
-  data.value.streamRequest.qty = 1
+  data.value.streamRequest.qty = 3
+  data.value.streamRequest.sleepSeconds = 3
 }
 </script>
 
@@ -80,6 +88,9 @@ const resetAll = () => {
     WAB is running now and there should be a gRPC server listening. To test it out click the 'Greet' button below:<br />
     <input type="text" v-model="data.name" placeholder="Enter your name" />
     <button type="button" @click="runGreet" :disabled="data.name.length === 0">Greet</button>
+    <button type="button" @click="resetAll" :disabled="data.response === null && data.responses.length === 0">
+      Reset
+    </button>
   </WelcomeItem>
 
   <WelcomeItem v-if="data.response">
