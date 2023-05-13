@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	glog "github.com/labstack/gommon/log"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/fernferret/wab/internal/wabmw"
 	"github.com/fernferret/wab/ui"
@@ -55,10 +56,11 @@ func NewAPIServer(options *Options) *APIServer {
 // RunLoop is the primary run method for the StripServer
 // NOTE: this method is blocking.
 func (s *APIServer) RunLoop() {
-	s.setupHTTPServer()
+	grpcSvr, svr := ServeGRPC(5050)
+	s.setupHTTPServer(grpcSvr, svr)
 }
 
-func (s *APIServer) setupHTTPServer() {
+func (s *APIServer) setupHTTPServer(grpcSvr *grpc.Server, grpcImpl *Server) {
 	s.e = echo.New()
 
 	if s.options.DevMode {
@@ -84,6 +86,9 @@ func (s *APIServer) setupHTTPServer() {
 
 	s.e.Logger.SetLevel(glog.DEBUG)
 
+	if grpcSvr != nil {
+		s.setupGRPCDebugUI(grpcSvr, grpcImpl)
+	}
 	s.setupStaticHandler()
 
 	s.setupRoutes()
@@ -176,6 +181,7 @@ func (s *APIServer) getState() echo.HandlerFunc {
 			"dogs_on": false,
 			"cats_on": true,
 		}
+
 		return c.JSON(http.StatusOK, result)
 	}
 }
@@ -186,11 +192,11 @@ func (s *APIServer) setupRoutes() {
 
 // Base Handlers
 func noEmbeddedUIHandler(ectx echo.Context) error {
-	return ectx.String(http.StatusOK, "No UI embedded in this copy of mango")
+	return ectx.String(http.StatusOK, "No UI embedded in this copy of wab")
 }
 
 func noSwaggerHandler(ectx echo.Context) error {
-	return ectx.String(http.StatusOK, "Swagger is not enabled in this copy of mango")
+	return ectx.String(http.StatusOK, "Swagger is not enabled in this copy of wab")
 }
 
 func invalidAPIRoute(ectx echo.Context) error {

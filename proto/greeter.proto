@@ -5,7 +5,8 @@ option go_package = "github.com/fernferret/wab/gen/greeterpb";
 // The greeting service definition.
 service Greeter {
   // Sends a greeting
-  rpc SayHello (HelloRequest) returns (HelloReply) {}
+  rpc Greet (HelloRequest) returns (HelloReply) {}
+  rpc GreetMany (HelloRequest) returns (stream HelloReply) {}
 }
 
 // The request message containing the user's name.

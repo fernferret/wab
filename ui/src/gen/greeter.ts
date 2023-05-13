@@ -1,5 +1,7 @@
 /* eslint-disable */
-import * as _m0 from "protobufjs/minimal";
+import _m0 from "protobufjs/minimal";
+import { Observable } from "rxjs";
+import { map } from "rxjs/operators";
 
 export const protobufPackage = "";
 
@@ -128,7 +130,8 @@ export const HelloReply = {
 /** The greeting service definition. */
 export interface Greeter {
   /** Sends a greeting */
-  SayHello(request: HelloRequest): Promise<HelloReply>;
+  Greet(request: HelloRequest): Promise<HelloReply>;
+  GreetMany(request: HelloRequest): Observable<HelloReply>;
 }
 
 export class GreeterClientImpl implements Greeter {
@@ -137,17 +140,27 @@ export class GreeterClientImpl implements Greeter {
   constructor(rpc: Rpc, opts?: { service?: string }) {
     this.service = opts?.service || "Greeter";
     this.rpc = rpc;
-    this.SayHello = this.SayHello.bind(this);
+    this.Greet = this.Greet.bind(this);
+    this.GreetMany = this.GreetMany.bind(this);
   }
-  SayHello(request: HelloRequest): Promise<HelloReply> {
+  Greet(request: HelloRequest): Promise<HelloReply> {
     const data = HelloRequest.encode(request).finish();
-    const promise = this.rpc.request(this.service, "SayHello", data);
+    const promise = this.rpc.request(this.service, "Greet", data);
     return promise.then((data) => HelloReply.decode(_m0.Reader.create(data)));
+  }
+
+  GreetMany(request: HelloRequest): Observable<HelloReply> {
+    const data = HelloRequest.encode(request).finish();
+    const result = this.rpc.serverStreamingRequest(this.service, "GreetMany", data);
+    return result.pipe(map((data) => HelloReply.decode(_m0.Reader.create(data))));
   }
 }
 
 interface Rpc {
   request(service: string, method: string, data: Uint8Array): Promise<Uint8Array>;
+  clientStreamingRequest(service: string, method: string, data: Observable<Uint8Array>): Promise<Uint8Array>;
+  serverStreamingRequest(service: string, method: string, data: Uint8Array): Observable<Uint8Array>;
+  bidirectionalStreamingRequest(service: string, method: string, data: Observable<Uint8Array>): Observable<Uint8Array>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

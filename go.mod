@@ -2,8 +2,14 @@ module github.com/fernferret/wab
 
 go 1.20
 
+// NOTE: I'm using an untagged version of grpcurl to fix this issue:
+// https://github.com/fullstorydev/grpcurl/issues/394
+
 require (
 	github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59
+	github.com/fullstorydev/grpchan v1.1.1
+	github.com/fullstorydev/grpcui v1.3.1
+	github.com/jhump/protoreflect v1.14.1
 	github.com/labstack/echo/v4 v4.10.2
 	github.com/labstack/gommon v0.4.0
 	github.com/spf13/pflag v1.0.5
@@ -13,6 +19,7 @@ require (
 )
 
 require (
+	github.com/fullstorydev/grpcurl v1.8.8-0.20230512165032-d5b8e4d4ce4c // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect

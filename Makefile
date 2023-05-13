@@ -32,8 +32,16 @@ proto:
 		-I proto \
 		--go_out=./gen/greeterpb --go_opt=paths=source_relative \
     --go-grpc_out=./gen/greeterpb --go-grpc_opt=paths=source_relative \
+		--grpchan_out=paths=source_relative:./gen/greeterpb \
     proto/greeter.proto && \
-	protoc --plugin=./ui/node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./ui/src/gen proto/greeter.proto"
+	protoc -I proto --plugin=./ui/node_modules/.bin/protoc-gen-ts_proto \
+		--ts_proto_opt=esModuleInterop=true --ts_proto_out=./ui/src/gen proto/greeter.proto"
+
+# NOTE: I added  "importsNotUsedAsValues": "remove", to tsconfig.app.json to fix:
+#   https://github.com/stephenh/ts-proto/issues/594
+#
+# The below sed was how I had originally hacked it together.
+# 	sed -I "" -r 's/import \{ Observable \} from "rxjs";/import type \{ Observable \} from "rxjs";/g' ui/src/gen/greeter.ts"
 
 setupui:
 	npm --prefix ./ui install
