@@ -12,8 +12,7 @@ import HelloWorld from './components/HelloWorld.vue'
 
       <nav>
         <RouterLink to="/">WAB Home</RouterLink>
-        <RouterLink to="/welcome">Welcome to Vue</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
+        <RouterLink to="/welcome">Vue 3</RouterLink>
       </nav>
     </div>
   </header>

@@ -5,8 +5,8 @@ option go_package = "github.com/fernferret/wab/gen/greeterpb";
 // The greeting service definition.
 service Greeter {
   // Sends a greeting
-  rpc Greet (HelloRequest) returns (HelloReply) {}
-  rpc GreetMany (HelloRequest) returns (stream HelloReply) {}
+  rpc Greet(HelloRequest) returns (HelloReply) {}
+  rpc GreetMany(MultiHelloRequest) returns (stream HelloReply) {}
 }
 
 // The request message containing the user's name.
@@ -17,4 +17,15 @@ message HelloRequest {
 // The response message containing the greetings
 message HelloReply {
   string message = 1;
+}
+
+// Used to send a streaming Hello Request
+message MultiHelloRequest {
+  // The greeting request that contains the name of the person to greet
+  HelloRequest request = 1;
+  // Qty is the number of greeting responses that should be sent
+  uint32 qty = 2;
+  // Sleep is the number of seconds that the server will sleep inbetween sending
+  // responses.
+  uint32 sleep_seconds = 3;
 }

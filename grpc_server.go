@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/fullstorydev/grpchan/inprocgrpc"
 	"github.com/fullstorydev/grpcui"
@@ -14,6 +15,8 @@ import (
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	gpb "github.com/fernferret/wab/gen/greeterpb"
 	"github.com/fernferret/wab/proto"
@@ -48,12 +51,30 @@ func (gs GRPCServer) Greet(ctx context.Context, in *gpb.HelloRequest) (*gpb.Hell
 	return &gpb.HelloReply{Message: "Hello " + in.GetName()}, nil
 }
 
-func (gs GRPCServer) GreetMany(req *gpb.HelloRequest, svr gpb.Greeter_GreetManyServer) error {
-	reply := gpb.HelloReply{
-		Message: fmt.Sprintf("Hi %s", req.Name),
+func (gs GRPCServer) GreetMany(req *gpb.MultiHelloRequest, svr gpb.Greeter_GreetManyServer) error {
+	greetReq := req.GetRequest()
+	if greetReq == nil {
+		return status.Error(codes.InvalidArgument, "missing greeting request")
 	}
 
-	return svr.Send(&reply)
+	for idx := 0; idx < int(req.Qty); idx++ {
+		reply := gpb.HelloReply{
+			Message: fmt.Sprintf("Hi %s (response %d)", req.Request.Name, idx),
+		}
+
+		err := svr.Send(&reply)
+		if err != nil {
+			return err
+		}
+
+		// Don't sleep for the last request
+		if idx < int(req.Qty)-1 {
+			// Sleep for x seconds after each request, can be 0
+			<-time.After(time.Second * time.Duration(req.SleepSeconds))
+		}
+	}
+
+	return nil
 }
 
 func (gs *GRPCServer) getGRPCUIHandler(grpcServer *grpc.Server) http.Handler {

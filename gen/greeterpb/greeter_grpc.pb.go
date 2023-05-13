@@ -20,7 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 type GreeterClient interface {
 	// Sends a greeting
 	Greet(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloReply, error)
-	GreetMany(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (Greeter_GreetManyClient, error)
+	GreetMany(ctx context.Context, in *MultiHelloRequest, opts ...grpc.CallOption) (Greeter_GreetManyClient, error)
 }
 
 type greeterClient struct {
@@ -40,7 +40,7 @@ func (c *greeterClient) Greet(ctx context.Context, in *HelloRequest, opts ...grp
 	return out, nil
 }
 
-func (c *greeterClient) GreetMany(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (Greeter_GreetManyClient, error) {
+func (c *greeterClient) GreetMany(ctx context.Context, in *MultiHelloRequest, opts ...grpc.CallOption) (Greeter_GreetManyClient, error) {
 	stream, err := c.cc.NewStream(ctx, &Greeter_ServiceDesc.Streams[0], "/Greeter/GreetMany", opts...)
 	if err != nil {
 		return nil, err
@@ -78,7 +78,7 @@ func (x *greeterGreetManyClient) Recv() (*HelloReply, error) {
 type GreeterServer interface {
 	// Sends a greeting
 	Greet(context.Context, *HelloRequest) (*HelloReply, error)
-	GreetMany(*HelloRequest, Greeter_GreetManyServer) error
+	GreetMany(*MultiHelloRequest, Greeter_GreetManyServer) error
 	mustEmbedUnimplementedGreeterServer()
 }
 
@@ -89,7 +89,7 @@ type UnimplementedGreeterServer struct {
 func (UnimplementedGreeterServer) Greet(context.Context, *HelloRequest) (*HelloReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Greet not implemented")
 }
-func (UnimplementedGreeterServer) GreetMany(*HelloRequest, Greeter_GreetManyServer) error {
+func (UnimplementedGreeterServer) GreetMany(*MultiHelloRequest, Greeter_GreetManyServer) error {
 	return status.Errorf(codes.Unimplemented, "method GreetMany not implemented")
 }
 func (UnimplementedGreeterServer) mustEmbedUnimplementedGreeterServer() {}
@@ -124,7 +124,7 @@ func _Greeter_Greet_Handler(srv interface{}, ctx context.Context, dec func(inter
 }
 
 func _Greeter_GreetMany_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(HelloRequest)
+	m := new(MultiHelloRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}

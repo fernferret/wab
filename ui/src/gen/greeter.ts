@@ -17,6 +17,21 @@ export interface HelloReply {
   message: string;
 }
 
+/** Used to send a streaming Hello Request */
+export interface MultiHelloRequest {
+  /** The greeting request that contains the name of the person to greet */
+  request:
+    | HelloRequest
+    | undefined;
+  /** Qty is the number of greeting responses that should be sent */
+  qty: number;
+  /**
+   * Sleep is the number of seconds that the server will sleep inbetween sending
+   * responses.
+   */
+  sleepSeconds: number;
+}
+
 function createBaseHelloRequest(): HelloRequest {
   return { name: "" };
 }
@@ -129,11 +144,97 @@ export const HelloReply = {
   },
 };
 
+function createBaseMultiHelloRequest(): MultiHelloRequest {
+  return { request: undefined, qty: 0, sleepSeconds: 0 };
+}
+
+export const MultiHelloRequest = {
+  encode(message: MultiHelloRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.request !== undefined) {
+      HelloRequest.encode(message.request, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.qty !== 0) {
+      writer.uint32(16).uint32(message.qty);
+    }
+    if (message.sleepSeconds !== 0) {
+      writer.uint32(24).uint32(message.sleepSeconds);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): MultiHelloRequest {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMultiHelloRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.request = HelloRequest.decode(reader, reader.uint32());
+          continue;
+        case 2:
+          if (tag !== 16) {
+            break;
+          }
+
+          message.qty = reader.uint32();
+          continue;
+        case 3:
+          if (tag !== 24) {
+            break;
+          }
+
+          message.sleepSeconds = reader.uint32();
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MultiHelloRequest {
+    return {
+      request: isSet(object.request) ? HelloRequest.fromJSON(object.request) : undefined,
+      qty: isSet(object.qty) ? Number(object.qty) : 0,
+      sleepSeconds: isSet(object.sleepSeconds) ? Number(object.sleepSeconds) : 0,
+    };
+  },
+
+  toJSON(message: MultiHelloRequest): unknown {
+    const obj: any = {};
+    message.request !== undefined && (obj.request = message.request ? HelloRequest.toJSON(message.request) : undefined);
+    message.qty !== undefined && (obj.qty = Math.round(message.qty));
+    message.sleepSeconds !== undefined && (obj.sleepSeconds = Math.round(message.sleepSeconds));
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MultiHelloRequest>, I>>(base?: I): MultiHelloRequest {
+    return MultiHelloRequest.fromPartial(base ?? {});
+  },
+
+  fromPartial<I extends Exact<DeepPartial<MultiHelloRequest>, I>>(object: I): MultiHelloRequest {
+    const message = createBaseMultiHelloRequest();
+    message.request = (object.request !== undefined && object.request !== null)
+      ? HelloRequest.fromPartial(object.request)
+      : undefined;
+    message.qty = object.qty ?? 0;
+    message.sleepSeconds = object.sleepSeconds ?? 0;
+    return message;
+  },
+};
+
 /** The greeting service definition. */
 export interface Greeter {
   /** Sends a greeting */
   Greet(request: DeepPartial<HelloRequest>, metadata?: grpc.Metadata): Promise<HelloReply>;
-  GreetMany(request: DeepPartial<HelloRequest>, metadata?: grpc.Metadata): Observable<HelloReply>;
+  GreetMany(request: DeepPartial<MultiHelloRequest>, metadata?: grpc.Metadata): Observable<HelloReply>;
 }
 
 export class GreeterClientImpl implements Greeter {
@@ -149,8 +250,8 @@ export class GreeterClientImpl implements Greeter {
     return this.rpc.unary(GreeterGreetDesc, HelloRequest.fromPartial(request), metadata);
   }
 
-  GreetMany(request: DeepPartial<HelloRequest>, metadata?: grpc.Metadata): Observable<HelloReply> {
-    return this.rpc.invoke(GreeterGreetManyDesc, HelloRequest.fromPartial(request), metadata);
+  GreetMany(request: DeepPartial<MultiHelloRequest>, metadata?: grpc.Metadata): Observable<HelloReply> {
+    return this.rpc.invoke(GreeterGreetManyDesc, MultiHelloRequest.fromPartial(request), metadata);
   }
 }
 
@@ -186,7 +287,7 @@ export const GreeterGreetManyDesc: UnaryMethodDefinitionish = {
   responseStream: true,
   requestType: {
     serializeBinary() {
-      return HelloRequest.encode(this).finish();
+      return MultiHelloRequest.encode(this).finish();
     },
   } as any,
   responseType: {
