@@ -49,7 +49,7 @@ setupui:
 ui:
 	npm --prefix ./ui run build
 
-uidev:
+dev-ui:
 	npm --prefix ./ui run dev
 
 test:
