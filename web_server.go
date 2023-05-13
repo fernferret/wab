@@ -21,12 +21,13 @@ import (
 
 // Options contains all the information about the web api. These are options like host, port, dev mode, etc.
 type Options struct {
-	Port          int
-	Host          string
-	DevMode       bool // If true, CORS headers will be not good.
-	LogRequests   bool
-	BuildMode     string
-	DisableGRPCUI bool
+	Port           int
+	Host           string
+	DevMode        bool // If true, CORS headers will be not good.
+	LogRequests    bool
+	BuildMode      string
+	DisableGRPCUI  bool
+	DisableGRPCWeb bool
 }
 
 // WebServer holds the internal fields for the HTTP Server (Echo) as well as the HTTP Client
@@ -62,7 +63,7 @@ func (s *WebServer) RunLoop() {
 	// Start a GRPCServer and setup the webui for debugging.
 	//
 	// TODO: Disable grpcweb if we disable the embedded UI
-	grpcWebHdlr, debugUIHdlr := ServeGRPC(5050, true, !s.options.DisableGRPCUI)
+	grpcWebHdlr, debugUIHdlr := ServeGRPC(5050, !s.options.DisableGRPCWeb, !s.options.DisableGRPCUI)
 
 	s.setupHTTPServer(grpcWebHdlr, debugUIHdlr)
 }
@@ -104,7 +105,7 @@ func (s *WebServer) setupHTTPServer(grpcWebHdlr, debugHandler http.Handler) {
 
 	if grpcWebHdlr != nil {
 		s.log.Infof("Setup grpcweb at %s", grpcPath)
-		grpcwebHandler = echo.WrapHandler(http.StripPrefix(grpcPath, debugHandler))
+		grpcwebHandler = echo.WrapHandler(http.StripPrefix(grpcPath, grpcWebHdlr))
 	} else {
 		grpcwebHandler = noGRPCWebHandler
 	}

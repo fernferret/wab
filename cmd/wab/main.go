@@ -32,6 +32,7 @@ func main() {
 	flag.BoolVar(&options.DevMode, "dev", false, "if true, CORS headers will be insecure, use if you're splitting the API/Server for now.")
 	flag.BoolVar(&options.LogRequests, "log-requests", false, "if true, http requests will be logged, pretty loud")
 	flag.BoolVar(&options.DisableGRPCUI, "no-grpcui", false, "disable the GRPCUI debug endpoint at /grpc-ui/")
+	flag.BoolVar(&options.DisableGRPCWeb, "no-grpcweb", false, "disable the grpcweb endpoint at /grpc/, this means the embedded Vue app won't work")
 	printVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Usage = usage
 	flag.Parse()

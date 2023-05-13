@@ -110,7 +110,7 @@ func SetupGRPCHTTPHandler() (http.Handler, http.Handler) {
 
 	uiHandler := svr.getGRPCUIHandler(baseSvr)
 
-	grpcWebHandler := svr.getGRPCUIHandler(baseSvr)
+	grpcWebHandler := svr.getGRPCWebHandler(baseSvr)
 
 	return grpcWebHandler, uiHandler
 }
@@ -134,7 +134,7 @@ func ServeGRPC(port int, enableGRPCWeb, enableGRPCUI bool) (http.Handler, http.H
 	var uiHandler, grpcWebHandler http.Handler
 
 	if enableGRPCWeb {
-		grpcWebHandler = svr.getGRPCUIHandler(baseSvr)
+		grpcWebHandler = svr.getGRPCWebHandler(baseSvr)
 	}
 
 	if enableGRPCUI {
@@ -149,15 +149,17 @@ func ServeGRPC(port int, enableGRPCWeb, enableGRPCUI bool) (http.Handler, http.H
 // thrown away after compile time.
 var _ gpb.GreeterServer = GRPCServer{}
 
-func (s *WebServer) GetGRPCWebHandler(baseSvr *grpc.Server) http.Handler {
+func (gs *GRPCServer) getGRPCWebHandler(baseSvr *grpc.Server) http.Handler {
 	wrappedGrpc := grpcweb.WrapServer(baseSvr)
 
 	return http.Handler(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		if wrappedGrpc.IsGrpcWebRequest(req) {
 			wrappedGrpc.ServeHTTP(resp, req)
+
 			return
 		}
 
-		s.log.Warn("Non GRPC request passed to GRPC handler.")
+		gs.log.Warn("Non gRPC request passed to GRPC handler.")
+		resp.WriteHeader(http.StatusBadRequest)
 	}))
 }
