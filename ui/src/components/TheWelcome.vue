@@ -12,6 +12,14 @@ import SupportIcon from './icons/IconSupport.vue'
     <template #icon>
       <DocumentationIcon />
     </template>
+    <template #heading>About</template>
+    Here's the original Vue 3 welcome page, feel free to browse through it.
+  </WelcomeItem>
+
+  <WelcomeItem>
+    <template #icon>
+      <DocumentationIcon />
+    </template>
     <template #heading>Documentation</template>
 
     Vue’s
