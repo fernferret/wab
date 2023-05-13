@@ -82,6 +82,21 @@ func (gs *GRPCServer) getGRPCUIHandler(grpcServer *grpc.Server) http.Handler {
 	return standalone.Handler(inprocChan, "Web Application Bootstrap", methods, descriptors)
 }
 
+func (gs *GRPCServer) getGRPCWebHandler(baseSvr *grpc.Server) http.Handler {
+	wrappedGrpc := grpcweb.WrapServer(baseSvr)
+
+	return http.Handler(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		if wrappedGrpc.IsGrpcWebRequest(req) {
+			wrappedGrpc.ServeHTTP(resp, req)
+
+			return
+		}
+
+		gs.log.Warn("Non gRPC request passed to GRPC handler.")
+		resp.WriteHeader(http.StatusBadRequest)
+	}))
+}
+
 func setupGRPCServer() (*grpc.Server, *GRPCServer) {
 	// Build a new GRPC Server that will handle the requests. This server is
 	// provided by the grpc libraries and will serve as the endpoint where we will
@@ -148,18 +163,3 @@ func ServeGRPC(port int, enableGRPCWeb, enableGRPCUI bool) (http.Handler, http.H
 // incorrect methods like pointer receivers. It isn't actually used and is
 // thrown away after compile time.
 var _ gpb.GreeterServer = GRPCServer{}
-
-func (gs *GRPCServer) getGRPCWebHandler(baseSvr *grpc.Server) http.Handler {
-	wrappedGrpc := grpcweb.WrapServer(baseSvr)
-
-	return http.Handler(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		if wrappedGrpc.IsGrpcWebRequest(req) {
-			wrappedGrpc.ServeHTTP(resp, req)
-
-			return
-		}
-
-		gs.log.Warn("Non gRPC request passed to GRPC handler.")
-		resp.WriteHeader(http.StatusBadRequest)
-	}))
-}
